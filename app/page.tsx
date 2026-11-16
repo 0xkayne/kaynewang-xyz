@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { CryptoStage } from "@/components/crypto-stage";
 import { EntryList } from "@/components/entry-list";
 import { PageShell } from "@/components/page-shell";
 import { formatDate, getFeatured, getUpdates, kindLabel } from "@/lib/content";
@@ -13,9 +14,11 @@ export default function HomePage() {
   const updates = getUpdates();
 
   return (
+    <>
+    <CryptoStage />
     <PageShell>
       <p className="text-sm text-muted">王子平 · 0xkayne</p>
-      <h1 className="mt-3 text-4xl font-semibold tracking-tight">Kayne</h1>
+      <h2 className="mt-3 text-4xl font-semibold tracking-tight">Kayne</h2>
       <p className="mt-4 max-w-2xl text-lg leading-8 text-muted">
         浙江大学在读。这里记下正在学的技术，和还没想完的问题。
       </p>
@@ -24,12 +27,12 @@ export default function HomePage() {
         <h2 id="featured-heading" className="text-sm font-medium text-muted">
           最近在写
         </h2>
-        <ul className="mt-4 grid gap-4 sm:grid-cols-3">
+        <ul className="mt-4 border-t border-line">
           {featured.map((item) => (
             <li key={`${item.kind}-${item.slug}`}>
               <Link
                 href={item.href}
-                className="flex h-full flex-col rounded-2xl border border-line bg-card p-4 transition-colors hover:border-accent"
+                className="flex h-full flex-col border-b border-line py-4"
               >
                 <span className="text-xs text-muted">
                   {kindLabel(item.kind)} · {formatDate(item.date)}
@@ -73,5 +76,6 @@ export default function HomePage() {
         </div>
       </section>
     </PageShell>
+    </>
   );
 }

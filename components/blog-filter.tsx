@@ -29,10 +29,10 @@ export function BlogFilter({ entries }: { entries: Update[] }) {
               type="button"
               aria-pressed={active}
               onClick={() => setFilter(item.id)}
-              className={`inline-flex rounded-full border px-3 py-1.5 ${
+              className={`inline-flex border-b px-1 py-1.5 font-bold tracking-wide ${
                 active
-                  ? "border-foreground bg-foreground text-background"
-                  : "border-line bg-transparent text-muted hover:text-foreground"
+                  ? "border-foreground text-foreground"
+                  : "border-transparent text-muted hover:text-foreground"
               }`}
             >
               {item.label}

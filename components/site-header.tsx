@@ -21,13 +21,14 @@ function isActive(pathname: string, href: string): boolean {
 export function SiteHeader() {
   const pathname = usePathname();
 
+  const home = pathname === "/";
+
   return (
-    <header className="border-b border-line">
-      <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-x-6 gap-y-3 px-5 py-4">
-        <Link
-          href="/"
-          className="text-base font-semibold tracking-tight text-foreground"
-        >
+    <header
+      className={`z-20 bg-background ${home ? "absolute inset-x-0 top-0" : "border-b border-line"}`}
+    >
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-x-6 gap-y-2 px-5 py-3">
+        <Link href="/" className="text-sm font-bold tracking-[0.14em] text-white">
           Kayne
         </Link>
         <nav aria-label="站内导航">
@@ -40,10 +41,10 @@ export function SiteHeader() {
                   <Link
                     href={item.href}
                     aria-current={active ? "page" : undefined}
-                    className={`inline-flex rounded-full px-3 py-1.5 ${
+                    className={`inline-flex border-b px-3 py-1.5 ${
                       active
-                        ? "bg-accent-soft text-foreground"
-                        : "text-muted hover:text-foreground"
+                        ? "border-white text-white"
+                        : "border-transparent text-muted hover:text-white"
                     }`}
                   >
                     {item.label}
