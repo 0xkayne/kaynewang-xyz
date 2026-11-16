@@ -576,7 +576,7 @@ async function main() {
     const { page, ws, target } = await connect(9336, `${BASE}/`);
     const lost = await page.eval(`(async () => {
       const canvas = document.querySelector('#crypto .crypto-canvas-gl');
-      const gl = canvas.getContext('webgl');
+      const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
       const ext = gl && gl.getExtension('WEBGL_lose_context');
       if (ext) ext.loseContext();
       await new Promise((resolve) => setTimeout(resolve, 80));

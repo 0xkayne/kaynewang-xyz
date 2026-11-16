@@ -1,5 +1,32 @@
 // Procedural grayscale fire for the homepage scene.
-// Three chapter shapes: interweaving tongues, one central plume, diverging streams.
+// The flame shape is ittybitty/fire (campfire, torch, wall), converted to
+// grayscale. Chapter 协作 / 验证 / 取舍 selects those three shapes.
+// Backing pixels stay near 480×270, the size measured in the throwaway proof.
+//
+// Copyright (c) 2026 Blake
+// Source: https://github.com/blakecyze/ittybitty-shaders/blob/main/shaders/fire.js
+// License: https://github.com/blakecyze/ittybitty-shaders/blob/main/LICENSE
+// SPDX-License-Identifier: MIT
+// LICENSE sha256: 6f378b55d72304c0a0c6e647f6b4c372b5e7d398dfb0b4b5bd7d31fb3e79716a
+// fire.js sha256: 97bcf76e15117511c058e7767757a54b105b16a419d85e24c208225910011470
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
 
 export type SceneHandle = {
   setChapter: (index: number) => void
@@ -12,65 +39,235 @@ type Bridge = {
   request: (index: number) => void
 }
 
-const VERT = "attribute vec2 aPos;varying vec2 vUv;void main(){vUv=aPos*0.5+0.5;gl_Position=vec4(aPos,0.0,1.0);}";
+const VERT = `#version 300 es
+void main() {
+  vec2 p = vec2((gl_VertexID << 1) & 2, gl_VertexID & 2);
+  gl_Position = vec4(p * 2.0 - 1.0, 0.0, 1.0);
+}
+`;
 
-const FRAG = [
-  "precision mediump float;",
-  "varying vec2 vUv;",
-  "uniform float uTime;",
-  "uniform float uChapter;",
-  "uniform float uNudge;",
-  "uniform float uWidth;",
-  "float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}",
-  "float noise(vec2 p){",
-  "vec2 i=floor(p);vec2 f=fract(p);vec2 u=f*f*(3.0-2.0*f);",
-  "return mix(mix(hash(i),hash(i+vec2(1.0,0.0)),u.x),mix(hash(i+vec2(0.0,1.0)),hash(i+vec2(1.0,1.0)),u.x),u.y);}",
-  "float fbm(vec2 p){",
-  "return noise(p)*0.65+noise(p*2.05+vec2(1.7,9.2))*0.35;}",
-  "float band(float x,float center,float halfW){",
-  "return 1.0-smoothstep(halfW*0.45,halfW,abs(x-center));}",
-  "float flame(vec2 uv,float center,float halfW,float seed){",
-  "float y=uv.y;",
-  "float rise=uTime*0.7;",
-  "vec2 q=vec2((uv.x+seed)*6.0,y*11.0-rise);",
-  "float n=fbm(q);",
-  "float n2=fbm(q*2.1+vec2(3.0,seed));",
-  "float curl=(n-0.5)*halfW*1.3;",
-  "float w=halfW*uWidth*(1.05-y*0.62)*(0.75+0.5*n2);",
-  "float body=band(uv.x+curl,center,w);",
-  "float rip=smoothstep(0.42,0.58,n*0.55+n2*0.45);",
-  "float reach=0.55+n*0.42;",
-  "float tip=1.0-smoothstep(reach,reach+0.08,y);",
-  "float root=smoothstep(0.22,0.0,y);",
-  "float heat=body*mix(1.0,rip,smoothstep(0.08,0.35,y))*tip;",
-  "heat=max(heat,body*root);",
-  "float core=band(uv.x+curl*0.4,center,w*0.38)*tip;",
-  "return heat*0.62+core*0.5;",
-  "}",
-  "void main(){",
-  "vec2 uv=vec2(vUv.x+uNudge,vUv.y);",
-  "float heat=0.0;",
-  "if(uChapter<0.5){",
-  "heat=max(flame(uv,0.30,0.13,1.2),flame(uv,0.50,0.11,4.8));",
-  "}else if(uChapter<1.5){",
-  "heat=flame(uv,0.40,0.09,2.0);",
-  "}else{",
-  "vec2 left=vec2(uv.x+uv.y*0.14,uv.y);",
-  "vec2 right=vec2(uv.x-uv.y*0.14,uv.y);",
-  "heat=max(flame(left,0.40,0.08,0.7),flame(right,0.40,0.08,3.6));",
-  "}",
-  "float luma=clamp(heat,0.0,0.92);",
-  "luma*=1.0-smoothstep(0.52,0.8,uv.x)*0.92;",
-  "gl_FragColor=vec4(luma,luma,luma,1.0);",
-  "}",
-].join("");
+const FRAG = `#version 300 es
+precision highp float;
 
-function compile(gl: WebGLRenderingContext, type: number, source: string): WebGLShader | null {
+uniform vec2 uResolution;
+uniform float uZoom;
+uniform float uShowFlames;
+uniform float uShowEmbers;
+uniform float uShowGlow;
+uniform float uTime;
+uniform float uNudge;
+uniform float uHeight;
+uniform float uTurbulence;
+uniform float uEmbers;
+uniform float uHeat;
+uniform float uShape;     // 0 campfire, 1 torch, 2 wall
+uniform float uStylised;
+uniform vec3 uTint;       // linear RGB
+uniform vec3 uBackground;
+uniform float uInteractive;
+uniform float uTransparent;
+uniform vec2 uPointer;
+uniform float uPointerActive;
+
+out vec4 fragColor;
+
+float hash12(vec2 p) {
+  vec3 q = fract(p.xyx * 0.1031);
+  q += dot(q, q.yzx + 33.33);
+  return fract((q.x + q.y) * q.z);
+}
+
+vec2 hash22(vec2 p) {
+  vec3 q = fract(p.xyx * vec3(0.1031, 0.1030, 0.0973));
+  q += dot(q, q.yzx + 33.33);
+  return fract((q.xx + q.yz) * q.zy);
+}
+
+float noise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash12(i), hash12(i + vec2(1, 0)), u.x), mix(hash12(i + vec2(0, 1)), hash12(i + vec2(1, 1)), u.x), u.y);
+}
+
+// Rising turbulence: each octave scrolls upward faster than the last, so
+// small wisps race up through the slower, larger billows.
+float fbm(vec2 p, float t) {
+  float v = 0.0;
+  float a = 0.5;
+  for (int i = 0; i < 5; i++) {
+    v += a * noise(p - vec2(0.0, t * (1.2 + float(i) * 0.6)));
+    p = p * 2.03 + vec2(1.7, 9.2);
+    a *= 0.5;
+  }
+  return v;
+}
+
+// Flame colour by temperature, 0 (cooling) to 1 (white-hot core): a
+// blackbody-like ramp from deep red through orange and yellow to white.
+vec3 blackbody(float k) {
+  vec3 c = vec3(0.0);
+  c += vec3(0.6, 0.05, 0.01) * smoothstep(0.0, 0.3, k);
+  c += vec3(0.5, 0.24, 0.0) * smoothstep(0.2, 0.55, k);
+  c += vec3(0.3, 0.5, 0.14) * smoothstep(0.45, 0.8, k);
+  c += vec3(0.15, 0.25, 0.5) * smoothstep(0.8, 1.0, k);
+  return c * mix(0.6, 2.4, k * k);
+}
+
+vec3 linearToSrgb(vec3 c) {
+  c = max(c, 0.0);
+  return mix(c * 12.92, 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055, step(0.0031308, c));
+}
+
+uniform vec2 uPointerFlow;
+
+// Zoom about the middle of the bottom edge, so the ground stays put: a
+// pixel, or a point in 0..1 canvas space (such as the pointer), as the
+// zoomed view sees it.
+vec2 zoomed(vec2 fc) {
+  vec2 anchor = vec2(0.5 * uResolution.x, 0.0);
+  return (fc - anchor) / uZoom + anchor;
+}
+
+vec2 zoomedUv(vec2 uv) {
+  return (uv - vec2(0.5, 0.0)) / uZoom + vec2(0.5, 0.0);
+}
+
+void main() {
+  vec2 uv = zoomed(gl_FragCoord.xy) / uResolution;
+  float aspect = uResolution.x / uResolution.y;
+  vec2 p = vec2((uv.x - 0.5) * aspect, uv.y);
+  p.x += uNudge;
+  float t = uTime;
+  float base = 0.05;
+  bool wall = uShape > 1.5;
+  bool torch = uShape > 0.5 && !wall;
+  float width = torch ? 0.075 : 0.22;
+  float tall = mix(0.25, 1.0, uHeight) * (torch ? 0.75 : 1.0);
+  float y = max(p.y - base, 0.0) / tall;                   // 0 base, 1 tip
+
+  // Wind from the pointer, so the whole fire moves as one: a steady lean
+  // away from the pointer when it is near, and a gust that follows the
+  // pointer's movement, trailing the flames after a swipe.
+  float blow = uInteractive * uPointerActive;
+  vec2 hand = vec2((zoomedUv(uPointer).x - 0.5) * aspect, zoomedUv(uPointer).y);
+  float dx = hand.x - (wall ? p.x : 0.0);
+  float away = -dx / sqrt(dx * dx + 0.03) * exp(-dx * dx * 3.0) * smoothstep(tall * 1.6 + base, 0.0, hand.y);
+  // A swipe: a gust from the pointer's movement, steady at any
+  // responsiveness, that dies away after the pointer stops.
+  float swipe = clamp(uPointerFlow.x * aspect * 0.35, -1.0, 1.0);
+  float wind = clamp(away * 0.6 + swipe, -1.2, 1.2) * blow;
+
+  float heat = 0.0;
+  // Even the tallest tongue ends below this height.
+  if (uShowFlames > 0.0 && (y < 1.8 || 0.4 + uTurbulence * 0.9 < 0.0)) {
+    // Rising turbulence displaces the flame sideways, more towards the tips,
+    // so tongues lick and twist rather than stand straight.
+    vec2 q = vec2(p.x * 5.0, p.y * 3.2);
+    float sway = (fbm(q * 0.7 + vec2(3.1, 0.0), t * 0.9) - 0.5) * 4.0;
+    // Finer licks ride on top, racing upward, so every edge flickers.
+    float lick = (fbm(q * 2.2 + vec2(8.3, 0.0), t * 2.4) - 0.5) * 4.0;
+    float x = p.x - ((sway * 0.3 + lick * 0.12) * uTurbulence * y + wind * 0.45 * y * (0.4 + y)) * tall;
+
+    // Density of fuel burning at this point: a teardrop per flame, broad at
+    // the base and narrowing to a tip. Nothing outside the flames.
+    float d = 0.0;
+    if (wall) {
+      // A row of tongues of uneven height, each rising and falling.
+      float reach = 0.55 + 0.45 * noise(vec2(x * 6.0, t * 0.7)) + 0.25 * noise(vec2(x * 17.0, t * 1.3));
+      d = smoothstep(1.3, 0.1, y / reach) * 1.1;
+    } else {
+      float count = torch ? 1.0 : 5.0;
+      for (int i = 0; i < 5; i++) {
+        float fi = float(i);
+        if (fi >= count) break;
+        float u = count > 1.0 ? fi / (count - 1.0) - 0.5 : 0.0;
+        float h = hash12(vec2(fi, 3.7));
+        // Taller in the middle; each flame on its own clock.
+        float reach = torch ? 1.0 : mix(0.35, 1.15, pow(1.0 - abs(u) * 1.8, 1.5)) * (0.85 + 0.3 * h);
+        float yi = y / reach;
+        float cx = u * width * 1.5 + (h - 0.5) * 0.04 + sin(t * (1.5 + h) + fi * 2.0) * 0.012 * yi;
+        float w = (torch ? width : width * 0.42) * mix(1.0, 0.18, clamp(yi, 0.0, 1.0)) * (0.9 + 0.3 * sin(min(yi, 1.0) * 3.14159));
+        float across = (x - cx) / w;
+        d += exp(-across * across * 2.2) * smoothstep(1.3, 0.1, yi) * (torch ? 1.2 : 0.95);
+      }
+    }
+    // Round off the base, as flames spring from the fuel, not a straight line.
+    d *= smoothstep(-0.04, 0.03, p.y - base + 0.03 * noise(vec2(p.x * 8.0, 1.0)));
+
+    // Turbulence only subtracts density, so empty air needs no more noise.
+    if (d * 1.3 > 0.02 || 0.4 + uTurbulence * 0.9 < 0.0) {
+      // Turbulence eats into the flame, more strongly higher up, tearing the
+      // tips into tongues that pinch off as wisps.
+      // Two scales: broad billows, and fine licks that tear the tips.
+      float n = fbm(q + vec2(sway * 0.4, 0.0), t * 1.4) * 0.5 + fbm(q * 2.3 + 5.0, t * 2.6) * 0.5;
+      // Only ever subtracts, so empty air never catches.
+      d = d * 1.3 - smoothstep(0.25, 0.75, n) * (0.15 + y * y * 1.8) * (0.4 + uTurbulence * 0.9);
+      // Temperature: the density, hottest in the core low down.
+      heat = smoothstep(0.02, 1.3, d) * mix(0.55, 1.0, smoothstep(0.7, 0.0, y));
+      // Brighter and dimmer streaks rising through the body.
+      heat *= 0.8 + 0.4 * smoothstep(0.3, 0.7, n);
+    }
+  }
+
+  // Outside the branches above, so the derivative below is well defined.
+  float k = clamp(heat * mix(0.5, 1.0, uHeat), 0.0, 1.0);
+  float soft = smoothstep(0.0, 0.04, k);
+  if (uStylised > 0.5) {
+    // Cel shading, as in games: three flat bands with clean edges. The
+    // edges stay crisp at any scale because the bands are cut on the
+    // smooth field, antialiased over a pixel.
+    float aa = fwidth(k) * 1.2 + 1e-4;
+    float band = smoothstep(0.1 - aa, 0.1 + aa, k) * 0.38 + smoothstep(0.35 - aa, 0.35 + aa, k) * 0.28 + smoothstep(0.62 - aa, 0.62 + aa, k) * 0.28;
+    k = band;
+    soft = smoothstep(0.1 - aa, 0.1 + aa, heat * mix(0.5, 1.0, uHeat));
+  }
+  vec3 flame = blackbody(k) * uTint * soft * uShowFlames;
+
+  // Embers: small bright sparks drifting up and swaying, fading as they cool.
+  vec3 sparks = vec3(0.0);
+  if (uEmbers > 0.0 && uShowEmbers > 0.5) {
+    for (int i = 0; i < 2; i++) {
+      float s = 18.0 + float(i) * 13.0;
+      vec2 e = vec2((p.x - wind * 0.3 * p.y) * s, (p.y - t * (0.25 + float(i) * 0.1)) * s);
+      e.x += sin(e.y * 0.35 + float(i) * 3.0) * 1.2;
+      vec2 cell = floor(e);
+      vec2 h = hash22(cell + float(i) * 31.0);
+      if (h.x < uEmbers * 0.12) {
+        vec2 ed = fract(e) - h;
+        float life = smoothstep(1.1, 0.1, (p.y - base) / tall) * (wall ? 1.0 : smoothstep(width * 2.0 + 0.1, 0.0, abs(p.x)));
+        sparks += vec3(1.0, 0.45, 0.1) * exp(-dot(ed, ed) * 90.0) * life * 3.0;
+      }
+    }
+  }
+
+  // Glow: light the fire casts on its surroundings, flickering with it.
+  float flicker = 0.85 + 0.15 * noise(vec2(t * 3.0, 0.5));
+  float glow = wall ? exp(-max(p.y - base, 0.0) * 3.0) : exp(-length(vec2(p.x, (p.y - base - tall * 0.2) * 1.3)) * (torch ? 5.0 : 3.5));
+  vec3 spill = vec3(0.9, 0.3, 0.08) * glow * 0.14 * flicker * mix(0.6, 1.2, uHeat) * uTint * uShowGlow;
+
+  vec3 light = flame + sparks;
+  vec3 colour = uBackground + spill + light;
+  colour = 1.0 - exp(-colour * 1.3);
+  vec3 c = linearToSrgb(colour);
+  c += (hash12(gl_FragCoord.xy) - 0.5) / 255.0;
+  if (uTransparent > 0.5) {
+    vec3 lc = linearToSrgb(1.0 - exp(-(light + spill) * 1.3));
+    fragColor = vec4(lc, max(lc.r, max(lc.g, lc.b)));
+    return;
+  }
+  float g = max(c.r, max(c.g, c.b));
+  fragColor = vec4(vec3(g), 1.0);
+}
+`;
+
+function compile(gl: WebGL2RenderingContext, type: number, source: string): WebGLShader | null {
   const shader = gl.createShader(type)
   if (!shader) return null
   gl.shaderSource(shader, source)
   gl.compileShader(shader)
   if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(shader))
     gl.deleteShader(shader)
     return null
   }
@@ -94,15 +291,29 @@ export function mountCryptoScene(
   const motion = window.matchMedia("(prefers-reduced-motion: reduce)")
   let reduced = motion.matches
   let mode: Mode = "static"
-  let gl: WebGLRenderingContext | null = null
+  let gl: WebGL2RenderingContext | null = null
   let program: WebGLProgram | null = null
-  let buffer: WebGLBuffer | null = null
   let loc: {
-    pos: number
+    resolution: WebGLUniformLocation | null
+    zoom: WebGLUniformLocation | null
+    flames: WebGLUniformLocation | null
+    embersOn: WebGLUniformLocation | null
+    glow: WebGLUniformLocation | null
     time: WebGLUniformLocation | null
-    chapter: WebGLUniformLocation | null
+    height: WebGLUniformLocation | null
+    turbulence: WebGLUniformLocation | null
+    embers: WebGLUniformLocation | null
+    heat: WebGLUniformLocation | null
+    shape: WebGLUniformLocation | null
+    stylised: WebGLUniformLocation | null
+    tint: WebGLUniformLocation | null
+    background: WebGLUniformLocation | null
+    interactive: WebGLUniformLocation | null
+    transparent: WebGLUniformLocation | null
+    pointer: WebGLUniformLocation | null
+    pointerActive: WebGLUniformLocation | null
+    pointerFlow: WebGLUniformLocation | null
     nudge: WebGLUniformLocation | null
-    width: WebGLUniformLocation | null
   } | null = null
   let width = 2
   let height = 2
@@ -152,16 +363,38 @@ export function mountCryptoScene(
   }
 
   function drawGl() {
-    if (!gl || !program || !buffer || !loc) return
+    if (!gl || !program || !loc) return
     gl.viewport(0, 0, width, height)
     gl.useProgram(program)
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
-    gl.enableVertexAttribArray(loc.pos)
-    gl.vertexAttribPointer(loc.pos, 2, gl.FLOAT, false, 0, 0)
-    gl.uniform1f(loc.time, reduced ? 0.85 : time)
-    gl.uniform1f(loc.chapter, chapter)
-    gl.uniform1f(loc.nudge, nudge)
-    gl.uniform1f(loc.width, width < 700 ? 1.35 : 1)
+    const set1 = (slot: WebGLUniformLocation | null, value: number) => {
+      if (slot) gl?.uniform1f(slot, value)
+    }
+    const set2 = (slot: WebGLUniformLocation | null, x: number, y: number) => {
+      if (slot) gl?.uniform2f(slot, x, y)
+    }
+    const set3 = (slot: WebGLUniformLocation | null, x: number, y: number, z: number) => {
+      if (slot) gl?.uniform3f(slot, x, y, z)
+    }
+    set2(loc.resolution, width, height)
+    set1(loc.zoom, 1)
+    set1(loc.flames, 1)
+    set1(loc.embersOn, 1)
+    set1(loc.glow, 0.25)
+    set1(loc.time, reduced ? 1.2 : time)
+    set1(loc.height, 0.72)
+    set1(loc.turbulence, 0.85)
+    set1(loc.embers, 0.45)
+    set1(loc.heat, 0.85)
+    set1(loc.shape, chapter)
+    set1(loc.stylised, 0)
+    set3(loc.tint, 1, 1, 1)
+    set3(loc.background, 0.012, 0.012, 0.012)
+    set1(loc.interactive, 0)
+    set1(loc.transparent, 0)
+    set2(loc.pointer, 0.5, 0.2)
+    set1(loc.pointerActive, 0)
+    set2(loc.pointerFlow, 0, 0)
+    set1(loc.nudge, nudge)
     gl.drawArrays(gl.TRIANGLES, 0, 3)
   }
 
@@ -228,7 +461,7 @@ export function mountCryptoScene(
     if (!adapted && drawTimes.length >= 45 && mode === "webgl") {
       const sorted = drawTimes.slice().sort((a, b) => a - b)
       const p95 = sorted[Math.min(sorted.length - 1, Math.ceil(sorted.length * 0.95) - 1)]
-      if (p95 > 18) {
+      if (p95 > 55) {
         adapted = true
         quality = 0.62
         resize()
@@ -279,7 +512,7 @@ export function mountCryptoScene(
 
   function initGl(): boolean {
     try {
-      gl = glCanvas.getContext("webgl", {
+      gl = glCanvas.getContext("webgl2", {
         alpha: false,
         antialias: false,
         depth: false,
@@ -300,29 +533,41 @@ export function mountCryptoScene(
     gl.attachShader(program, vertex)
     gl.attachShader(program, fragment)
     gl.linkProgram(program)
-    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) return false
-    buffer = gl.createBuffer()
-    if (!buffer) return false
-    gl.bindBuffer(gl.ARRAY_BUFFER, buffer)
-    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW)
-    loc = {
-      pos: gl.getAttribLocation(program, "aPos"),
-      time: gl.getUniformLocation(program, "uTime"),
-      chapter: gl.getUniformLocation(program, "uChapter"),
-      nudge: gl.getUniformLocation(program, "uNudge"),
-      width: gl.getUniformLocation(program, "uWidth"),
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      console.error(gl.getProgramInfoLog(program))
+      return false
     }
-    return loc.pos >= 0
+    loc = {
+      resolution: gl.getUniformLocation(program, "uResolution"),
+      zoom: gl.getUniformLocation(program, "uZoom"),
+      flames: gl.getUniformLocation(program, "uShowFlames"),
+      embersOn: gl.getUniformLocation(program, "uShowEmbers"),
+      glow: gl.getUniformLocation(program, "uShowGlow"),
+      time: gl.getUniformLocation(program, "uTime"),
+      height: gl.getUniformLocation(program, "uHeight"),
+      turbulence: gl.getUniformLocation(program, "uTurbulence"),
+      embers: gl.getUniformLocation(program, "uEmbers"),
+      heat: gl.getUniformLocation(program, "uHeat"),
+      shape: gl.getUniformLocation(program, "uShape"),
+      stylised: gl.getUniformLocation(program, "uStylised"),
+      tint: gl.getUniformLocation(program, "uTint"),
+      background: gl.getUniformLocation(program, "uBackground"),
+      interactive: gl.getUniformLocation(program, "uInteractive"),
+      transparent: gl.getUniformLocation(program, "uTransparent"),
+      pointer: gl.getUniformLocation(program, "uPointer"),
+      pointerActive: gl.getUniformLocation(program, "uPointerActive"),
+      pointerFlow: gl.getUniformLocation(program, "uPointerFlow"),
+      nudge: gl.getUniformLocation(program, "uNudge"),
+    }
+    return loc.time !== null && loc.shape !== null
   }
 
   function resize() {
     const rect = root.getBoundingClientRect()
-    const narrow = rect.width < 800
-    const capW = (narrow ? 640 : 1280) * quality
-    const capH = (narrow ? 900 : 800) * quality
     let nextW = Math.max(2, Math.round(rect.width))
     let nextH = Math.max(2, Math.round(rect.height))
-    const scale = Math.min(1, capW / nextW, capH / nextH)
+    const budget = 480 * 270 * quality
+    const scale = Math.min(1, Math.sqrt(budget / Math.max(1, nextW * nextH)))
     nextW = Math.max(2, Math.round(nextW * scale))
     nextH = Math.max(2, Math.round(nextH * scale))
     width = nextW
