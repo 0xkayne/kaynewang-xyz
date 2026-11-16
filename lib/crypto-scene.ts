@@ -25,47 +25,43 @@ const FRAG = [
   "float noise(vec2 p){",
   "vec2 i=floor(p);vec2 f=fract(p);vec2 u=f*f*(3.0-2.0*f);",
   "return mix(mix(hash(i),hash(i+vec2(1.0,0.0)),u.x),mix(hash(i+vec2(0.0,1.0)),hash(i+vec2(1.0,1.0)),u.x),u.y);}",
-  "float lick(vec2 uv,float center,float width,float height,float rise,float curl,float seed){",
-  "float n=noise(vec2(seed*1.7,uv.y*3.2-uTime*rise));",
-  "float n2=noise(vec2(seed+uv.x*2.0,uv.y*7.5-uTime*rise*1.35));",
-  "float x=uv.x-center-(n-0.5)*width*curl;",
-  "float h=height*(0.58+0.42*n2);",
-  "float taper=width*uWidth*pow(max(0.001,1.0-uv.y/h),0.55);",
-  "float d=abs(x);",
-  "float body=1.0-smoothstep(taper*0.22,taper,d);",
-  "float core=1.0-smoothstep(0.0,taper*0.28,d);",
-  "float alive=smoothstep(0.0,0.03,uv.y)*(1.0-smoothstep(h*0.78,h,uv.y));",
-  "return alive*max(body*0.72,core);",
-  "}",
-  "float flames(vec2 uv,float chapter){",
-  "if(chapter<0.5){",
-  "float s=sin(uTime*0.85);",
-  "float a=lick(uv,0.26+s*0.11,0.05,0.96,1.25,1.8,1.0);",
-  "float b=lick(uv,0.38+s*0.05,0.04,0.82,1.55,1.5,2.3);",
-  "float c=lick(uv,0.52-s*0.11,0.05,0.9,1.05,1.7,3.7);",
-  "float d=lick(uv,0.34-s*0.06,0.032,0.7,1.7,1.4,5.2);",
-  "return max(max(a,b),max(c,d));",
-  "}",
-  "if(chapter<1.5){",
-  "float a=lick(uv,0.40,0.034,0.98,0.7,0.35,1.2);",
-  "float b=lick(uv,0.40,0.022,0.86,0.95,0.25,2.8);",
-  "float c=lick(uv,0.40,0.016,0.72,1.15,0.2,4.4);",
-  "return max(a,max(b,c));",
-  "}",
-  "float left=0.40-uv.y*0.2;",
-  "float right=0.40+uv.y*0.2;",
-  "float a=lick(uv,left,0.042,0.9,1.1,1.1,0.6);",
-  "float b=lick(uv,left-0.03,0.028,0.72,1.4,0.9,1.9);",
-  "float c=lick(uv,right,0.042,0.88,0.95,1.1,3.1);",
-  "float d=lick(uv,right+0.03,0.028,0.7,1.3,0.9,4.8);",
-  "return max(max(a,b),max(c,d));",
+  "float fbm(vec2 p){",
+  "return noise(p)*0.65+noise(p*2.05+vec2(1.7,9.2))*0.35;}",
+  "float band(float x,float center,float halfW){",
+  "return 1.0-smoothstep(halfW*0.45,halfW,abs(x-center));}",
+  "float flame(vec2 uv,float center,float halfW,float seed){",
+  "float y=uv.y;",
+  "float rise=uTime*0.7;",
+  "vec2 q=vec2((uv.x+seed)*6.0,y*11.0-rise);",
+  "float n=fbm(q);",
+  "float n2=fbm(q*2.1+vec2(3.0,seed));",
+  "float curl=(n-0.5)*halfW*1.3;",
+  "float w=halfW*uWidth*(1.05-y*0.62)*(0.75+0.5*n2);",
+  "float body=band(uv.x+curl,center,w);",
+  "float rip=smoothstep(0.42,0.58,n*0.55+n2*0.45);",
+  "float reach=0.55+n*0.42;",
+  "float tip=1.0-smoothstep(reach,reach+0.08,y);",
+  "float root=smoothstep(0.22,0.0,y);",
+  "float heat=body*mix(1.0,rip,smoothstep(0.08,0.35,y))*tip;",
+  "heat=max(heat,body*root);",
+  "float core=band(uv.x+curl*0.4,center,w*0.38)*tip;",
+  "return heat*0.62+core*0.5;",
   "}",
   "void main(){",
   "vec2 uv=vec2(vUv.x+uNudge,vUv.y);",
-  "float heat=flames(uv,uChapter);",
-  "float luma=smoothstep(0.08,0.55,heat)*0.5+smoothstep(0.45,0.92,heat)*0.5;",
+  "float heat=0.0;",
+  "if(uChapter<0.5){",
+  "heat=max(flame(uv,0.30,0.13,1.2),flame(uv,0.50,0.11,4.8));",
+  "}else if(uChapter<1.5){",
+  "heat=flame(uv,0.40,0.09,2.0);",
+  "}else{",
+  "vec2 left=vec2(uv.x+uv.y*0.14,uv.y);",
+  "vec2 right=vec2(uv.x-uv.y*0.14,uv.y);",
+  "heat=max(flame(left,0.40,0.08,0.7),flame(right,0.40,0.08,3.6));",
+  "}",
+  "float luma=clamp(heat,0.0,0.92);",
   "luma*=1.0-smoothstep(0.52,0.8,uv.x)*0.92;",
-  "gl_FragColor=vec4(clamp(luma,0.0,0.92),clamp(luma,0.0,0.92),clamp(luma,0.0,0.92),1.0);",
+  "gl_FragColor=vec4(luma,luma,luma,1.0);",
   "}",
 ].join("");
 
@@ -171,32 +167,26 @@ export function mountCryptoScene(
 
   function seedHeat(x: number) {
     const nx = x / fireW
-    const sway = Math.sin(time * 0.7)
-    if (chapter === 0) {
-      const a = Math.exp(-((nx - (0.3 + sway * 0.08)) ** 2) / 0.004)
-      const b = Math.exp(-((nx - (0.56 - sway * 0.08)) ** 2) / 0.0035)
-      return Math.min(255, (Math.max(a, b) * 255) | 0)
-    }
-    if (chapter === 1) {
-      const a = Math.exp(-((nx - 0.4) ** 2) / 0.0016)
-      return Math.min(255, (a * 255) | 0)
-    }
-    const a = Math.exp(-((nx - 0.24) ** 2) / 0.0028)
-    const b = Math.exp(-((nx - 0.56) ** 2) / 0.0028)
-    return Math.min(255, (Math.max(a, b) * 240) | 0)
+    const speck = (hash2(x, 4, Math.floor(time * 12)) % 255) / 255
+    const band = (center: number, spread: number) => Math.exp(-((nx - center) ** 2) / spread)
+    let shape = band(0.4, 0.01)
+    if (chapter === 0) shape = Math.max(band(0.3, 0.014), band(0.5, 0.012))
+    if (chapter === 2) shape = Math.max(band(0.28, 0.008), band(0.52, 0.008))
+    return Math.min(255, (shape * (150 + speck * 105)) | 0)
   }
 
   function stepFire(steps: number) {
     for (let step = 0; step < steps; step += 1) {
       for (let y = 0; y < fireH - 1; y += 1) {
         const row = y * fireW
-        const above = row + fireW
+        const below = row + fireW
         for (let x = 0; x < fireW; x += 1) {
-          const wind = (hash2(x, y, time * 30 + step) % 3) - 1
-          const src = Math.min(fireW - 1, Math.max(0, x + wind))
-          const decay = hash2(x + 3, y, step + 9) % 5
-          const value = cells[above + src]
-          cells[row + x] = value > decay ? value - decay : 0
+          const left = cells[below + Math.max(0, x - 1)]
+          const mid = cells[below + x]
+          const right = cells[below + Math.min(fireW - 1, x + 1)]
+          const decay = 1 + (hash2(x, y, step + Math.floor(time * 20)) % 4)
+          const value = (left + mid * 2 + right) / 4 - decay
+          cells[row + x] = value > 0 ? value : 0
         }
       }
       const base = (fireH - 1) * fireW
@@ -208,7 +198,7 @@ export function mountCryptoScene(
     if (!ctx2d || !fireCtx || !fireImage) return
     if (reduced) {
       cells.fill(0)
-      for (let i = 0; i < 28; i += 1) stepFire(1)
+      for (let i = 0; i < fireH; i += 1) stepFire(1)
     } else {
       stepFire(2)
     }
@@ -328,8 +318,8 @@ export function mountCryptoScene(
   function resize() {
     const rect = root.getBoundingClientRect()
     const narrow = rect.width < 800
-    const capW = (narrow ? 480 : 960) * quality
-    const capH = (narrow ? 700 : 560) * quality
+    const capW = (narrow ? 640 : 1280) * quality
+    const capH = (narrow ? 900 : 800) * quality
     let nextW = Math.max(2, Math.round(rect.width))
     let nextH = Math.max(2, Math.round(rect.height))
     const scale = Math.min(1, capW / nextW, capH / nextH)
