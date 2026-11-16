@@ -1,25 +1,32 @@
 @import "tailwindcss";
 
-:root {
-  --background: #f7f4ef;
-  --foreground: #1c1917;
-  --muted: #57534e;
-  --line: #e6dfd4;
-  --card: #fffdf9;
-  --accent: #9f3d22;
-  --accent-soft: #f3e6df;
+@font-face {
+  font-family: "Noto Serif SC";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/NotoSerifSC-400.woff2") format("woff2");
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #141210;
-    --foreground: #f5f0e8;
-    --muted: #a8a29e;
-    --line: #2e2926;
-    --card: #1c1917;
-    --accent: #f0c2b2;
-    --accent-soft: #2a211e;
-  }
+@font-face {
+  font-family: "Noto Serif SC";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/NotoSerifSC-700.woff2") format("woff2");
+}
+
+:root {
+  --background: #0d0d0d;
+  --foreground: #f3f3f3;
+  --muted: #c4c4c4;
+  --line: #2a2a2a;
+  --card: #111111;
+  --accent: #f3f3f3;
+  --accent-soft: #1a1a1a;
+  --font-serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", Palatino,
+    "Palatino Linotype", "Liberation Serif", "Times New Roman", serif;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -30,14 +37,14 @@
   --color-card: var(--card);
   --color-accent: var(--accent);
   --color-accent-soft: var(--accent-soft);
-  --font-sans: "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei",
-    ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Noto Serif SC", "Source Han Serif SC", "Songti SC", Palatino,
+    "Palatino Linotype", "Liberation Serif", "Times New Roman", serif;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-sans);
+  font-family: var(--font-serif);
 }
 
 :focus-visible {
@@ -93,7 +100,6 @@ body {
 }
 
 .prose code {
-  border-radius: 0.35rem;
   background: var(--accent-soft);
   padding: 0.1rem 0.35rem;
   font-size: 0.92em;
@@ -102,7 +108,6 @@ body {
 .prose pre {
   overflow-x: auto;
   border: 1px solid var(--line);
-  border-radius: 0.75rem;
   background: var(--card);
   padding: 0.9rem 1rem;
   line-height: 1.6;
@@ -117,4 +122,170 @@ body {
   border-left: 2px solid var(--accent);
   padding-left: 1rem;
   color: var(--muted);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.crypto-stage {
+  position: relative;
+  height: 100dvh;
+  min-height: 100dvh;
+  overflow: hidden;
+  background: #000;
+  color: #fff;
+  touch-action: pan-y;
+}
+
+.crypto-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  pointer-events: none;
+}
+
+.crypto-stage[data-renderer="webgl"] .crypto-canvas-2d,
+.crypto-stage[data-renderer="static"] .crypto-canvas,
+.crypto-stage[data-renderer="2d"] .crypto-canvas-gl {
+  display: none;
+}
+
+.crypto-shade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.05) 0%,
+    rgba(0, 0, 0, 0.18) 38%,
+    rgba(0, 0, 0, 0.78) 68%,
+    rgba(0, 0, 0, 0.88) 100%
+  );
+}
+
+.crypto-copy {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  right: 6vw;
+  width: min(38rem, 46vw);
+  transform: translateY(-52%);
+  color: #f4f4f4;
+}
+
+.crypto-copy h1 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(2rem, 3.5vw, 3.5rem);
+  font-weight: 700;
+  line-height: 1.15;
+  text-wrap: balance;
+}
+
+.crypto-copy p {
+  margin: 1rem 0 0;
+  color: #f4f4f4;
+  font-size: clamp(0.98rem, 1.15vw, 1.12rem);
+  font-weight: 400;
+  line-height: 1.8;
+}
+
+.crypto-chapters {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: 4.5vh;
+  display: flex;
+  gap: 0.4rem;
+  transform: translateX(-50%);
+}
+
+.crypto-chapters button {
+  border: 0;
+  border-bottom: 1px solid transparent;
+  background: transparent;
+  color: #c4c4c4;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  padding: 0.45rem 0.7rem;
+  cursor: pointer;
+}
+
+.crypto-chapters button[aria-pressed="true"] {
+  color: #fff;
+  border-bottom-color: #fff;
+}
+
+.crypto-chapters button:hover {
+  color: #fff;
+}
+
+@media (max-width: 800px) {
+  .crypto-shade {
+    background: linear-gradient(
+      180deg,
+      rgba(0, 0, 0, 0.15) 0%,
+      rgba(0, 0, 0, 0.2) 42%,
+      rgba(0, 0, 0, 0.88) 72%,
+      rgba(0, 0, 0, 0.92) 100%
+    );
+  }
+
+  .crypto-copy {
+    top: auto;
+    right: 1.1rem;
+    bottom: 14vh;
+    left: 1.1rem;
+    width: auto;
+    transform: none;
+  }
+
+  .crypto-copy h1 {
+    font-size: 1.7rem;
+  }
+
+  .crypto-copy p {
+    font-size: 0.95rem;
+    line-height: 1.7;
+  }
+
+  .crypto-chapters {
+    bottom: 3vh;
+    gap: 0.1rem;
+  }
+
+  .crypto-chapters button {
+    letter-spacing: 0.12em;
+    padding: 0.4rem 0.45rem;
+  }
+}
+
+@media (max-height: 520px) {
+  .crypto-copy {
+    top: 18vh;
+    bottom: auto;
+    transform: none;
+  }
+
+  .crypto-copy h1 {
+    font-size: 1.45rem;
+  }
+
+  .crypto-copy p {
+    font-size: 0.88rem;
+    line-height: 1.55;
+  }
 }
