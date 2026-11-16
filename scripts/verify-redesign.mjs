@@ -404,9 +404,18 @@ async function main() {
     report.performance.coldDesktopLoopback = cold;
     check("cold document loaded", cold.load > 0, `load ${cold.load}`);
 
+    const motionPair = await page.eval(`(async () => {
+      const canvas = [...document.querySelectorAll('#crypto canvas')].find((node) => getComputedStyle(node).display !== 'none');
+      const first = canvas ? canvas.toDataURL() : '';
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      const second = canvas ? canvas.toDataURL() : '';
+      return { different: Boolean(first && second && first !== second), running: window.__kayneScene?.running === true };
+    })()`);
+    check("idle flame keeps moving", motionPair.different && motionPair.running, JSON.stringify(motionPair));
+
     await page.eval(`(() => {
       document.querySelector('#crypto button[data-chapter="1"]').click();
-      return new Promise((resolve) => setTimeout(resolve, 900));
+      return new Promise((resolve) => setTimeout(resolve, 30000));
     })()`);
     const frames = await page.eval("window.__kayneScene ? window.__kayneScene.frames : []");
     const drawTimes = await page.eval("window.__kayneScene ? window.__kayneScene.drawTimes : []");
@@ -417,17 +426,32 @@ async function main() {
     report.performance.desktopFrames = summarize(frames);
     report.performance.drawTimesMs = summarize(drawTimes);
     report.performance.longTasksMs = longTasks;
-    check("scene recorded frame intervals", frames.length > 0, `n=${frames.length}`);
+    check("sustained frame sample", frames.length >= 60, `n=${frames.length}`);
 
     await page.send("Emulation.setCPUThrottlingRate", { rate: 4 });
     await page.eval(`(() => {
       window.__kayneScene && (window.__before = window.__kayneScene.frames.length);
       document.querySelector('#crypto button[data-chapter="2"]').click();
-      return new Promise((resolve) => setTimeout(resolve, 1200));
+      return new Promise((resolve) => setTimeout(resolve, 2000));
     })()`);
     const throttled = await page.eval("window.__kayneScene.frames.slice(window.__before || 0)");
     report.performance.desktopFramesCpu4x = summarize(throttled);
     await page.send("Emulation.setCPUThrottlingRate", { rate: 1 });
+
+    const hidden = await page.eval(`(async () => {
+      const before = window.__kayneScene ? window.__kayneScene.frames.length : 0;
+      document.dispatchEvent(new Event("freeze"));
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      const during = window.__kayneScene ? window.__kayneScene.frames.length : 0;
+      const running = document.querySelector("#crypto")?.dataset.running;
+      document.dispatchEvent(new Event("resume"));
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      const after = window.__kayneScene ? window.__kayneScene.frames.length : 0;
+      return { before, during, after, running };
+    })()`);
+    report.performance.hiddenTab = hidden;
+    report.performance.freezeEventNote =
+      "freeze/resume is only an in-page event, not a hidden-tab test";
 
     const routes = [
       ["/notes", BASELINE.notes.filter((item) => item !== "还没有笔记。"), "笔记 · Kayne"],
@@ -552,7 +576,7 @@ async function main() {
     const { page, ws, target } = await connect(9336, `${BASE}/`);
     const lost = await page.eval(`(async () => {
       const canvas = document.querySelector('#crypto .crypto-canvas-gl');
-      const gl = canvas.getContext('webgl');
+      const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
       const ext = gl && gl.getExtension('WEBGL_lose_context');
       if (ext) ext.loseContext();
       await new Promise((resolve) => setTimeout(resolve, 80));

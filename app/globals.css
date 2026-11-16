@@ -167,10 +167,10 @@ body {
   pointer-events: none;
   background: linear-gradient(
     90deg,
-    rgba(0, 0, 0, 0.05) 0%,
-    rgba(0, 0, 0, 0.18) 38%,
-    rgba(0, 0, 0, 0.78) 68%,
-    rgba(0, 0, 0, 0.88) 100%
+    rgba(0, 0, 0, 0.12) 0%,
+    rgba(0, 0, 0, 0.28) 34%,
+    rgba(0, 0, 0, 0.84) 58%,
+    rgba(0, 0, 0, 0.94) 100%
   );
 }
 
@@ -199,6 +199,18 @@ body {
   font-size: clamp(0.98rem, 1.15vw, 1.12rem);
   font-weight: 400;
   line-height: 1.8;
+}
+
+.crypto-stage::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  height: 16vh;
+  pointer-events: none;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.78), rgba(0, 0, 0, 0));
 }
 
 .crypto-chapters {
@@ -237,10 +249,10 @@ body {
   .crypto-shade {
     background: linear-gradient(
       180deg,
-      rgba(0, 0, 0, 0.15) 0%,
-      rgba(0, 0, 0, 0.2) 42%,
-      rgba(0, 0, 0, 0.88) 72%,
-      rgba(0, 0, 0, 0.92) 100%
+      rgba(0, 0, 0, 0.08) 0%,
+      rgba(0, 0, 0, 0.22) 38%,
+      rgba(0, 0, 0, 0.9) 64%,
+      rgba(0, 0, 0, 0.95) 100%
     );
   }
 
